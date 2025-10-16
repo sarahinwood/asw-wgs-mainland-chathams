@@ -48,7 +48,7 @@ rule target:
         ## filtering
         expand('output/03_filtering/vcf_stats/ASW_agresearch_{filtering}_stats.txt', filtering=["combined", "combined_filtered"]),
         ## plink - fst, pca, admixture
-        'output/04_plink/fst/population_fst_results.fst.summary',
+        expand('output/04_plink/fst/{sample_grouping}/population_fst_results.fst.summary', sample_grouping=["Location", "admix_k2", "admix_k3", "admix_k4"]),
         'output/04_plink/no_ldpruning/filtered_snps_plink_pca.eigenvec',
         'output/04_plink/ld_pruned/admixture/admixture_cv_res.out',
         ## mashtree
@@ -195,7 +195,7 @@ rule bcftools_index:
 # determine best K value from CV
 rule grep_admixture_cvs_WGS_only:
     input:
-        expand('output/04_plink/ld_pruned/admixture/admixture.{k}.log', k=["2", "3", "4", "5"])
+        expand('output/04_plink/ld_pruned/admixture/admixture.{k}.log', k=["2", "3", "4", "5", "6", "7", "8", "9", "10"])
     output:
         'output/04_plink/ld_pruned/admixture/admixture_cv_res.out'
     shell:
@@ -396,14 +396,14 @@ rule plink2_allele_freqs:
 
 rule plink2_fstmatrix:
     input:
-        pgen = 'output/04_plink/fst/fst.pgen',
+        pgen = 'output/04_plink/fst/{sample_grouping}/fst.pgen',
     output:
-        'output/04_plink/fst/population_fst_results.fst.summary'
+        'output/04_plink/fst/{sample_grouping}/population_fst_results.fst.summary'
     params:
-        in_path = 'output/04_plink/fst/fst',
-        out_path = 'output/04_plink/fst/population_fst_results'
+        in_path = 'output/04_plink/fst/{sample_grouping}/fst',
+        out_path = 'output/04_plink/fst/{sample_grouping}/population_fst_results'
     log:
-        'output/logs/plink_fstmatrix_ploidy_2_mitoout_population.log'
+        'output/logs/plink_fstmatrix_ploidy_2_mitoout_population_{sample_grouping}.log'
     singularity:
         plink2_container
     shell:
@@ -416,18 +416,17 @@ rule plink2_fstmatrix:
         '&> {log}'
 
 
-
 rule plink2_make_pgen_for_fst:
     input:
         vcf = 'output/03_filtering/ASW_agresearch_combined_filtered.vcf.gz',
-        populations_psam = 'data/plink2_populations.psam'
+        populations_psam = 'data/populations/{sample_grouping}_plink2_populations.psam'
     output:
-        pgen = 'output/04_plink/fst/fst.pgen',
-        psam  = 'output/04_plink/fst/fst.psam'
+        pgen = 'output/04_plink/fst/{sample_grouping}/fst.pgen',
+        psam  = 'output/04_plink/fst/{sample_grouping}/fst.psam'
     params:
-        wd = 'output/04_plink/fst/fst'
+        wd = 'output/04_plink/fst/{sample_grouping}/fst'
     log:
-        'output/logs/plink2_make_pgen_for_fst.log'
+        'output/logs/plink2_make_pgen_for_fst_{sample_grouping}.log'
     singularity:
         plink2_container
     shell:
