@@ -3,6 +3,8 @@ library(data.table)
 library(viridis)
 library(ggplot2)
 
+# use clumpak sorted admixture output
+
 pca_pruned <- fread('output/04_plink/ld_pruned/ld_pruned_snps_plink_pca.eigenvec')
 eigenval_pruned <- scan('output/04_plink/ld_pruned/ld_pruned_snps_plink_pca.eigenval')
 
@@ -21,17 +23,63 @@ pve_pruned <- data.frame(PC = 1:20, pve = eigenval_pruned/sum(eigenval_pruned)*1
 # calculate the cumulative sum of the percentage variance explained
 cumsum(pve_pruned$pve)
 
+
+sample_names_table <- fread("output/04_plink/ld_pruned/ld_pruned_snps_plink_pca.fam", header=F)
+sample_names <- sample_names_table[,2]
+
+## sample groupings based on admixture
+long_admix_all <- fread("output/04_plink/ld_pruned/admixture/clumpak/output/admix_clumpak_table_for_plot.csv")
+
+# which pop is best fit for each sample for each value of K?
+admix_best <- long_admix_all %>%
+  group_by(sample, k) %>%
+  slice_max(order_by = value, n = 1, with_ties = FALSE) %>%
+  ungroup()
+
+pca_admix_best <- merge(pca_pruned, admix_best, by.x="sample_name", by.y="sample")
+pca_admix_best$k <- factor(pca_admix_best$k, levels=c("K = 2", "K = 3", "K = 4", "K = 5", "K = 6", "K = 7", "K = 8", "K = 9", "K = 10"))
+pca_admix_best$Q <- factor(pca_admix_best$Q, levels=c("Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8", "Q9", "Q10"))
+
 # plot pca_pruned - Location
-ggplot(pca_pruned, aes(PC1, PC2, colour=Location))+ 
+ggplot(pca_admix_best, aes(PC1, PC2, colour=Q))+ 
   geom_point(size = 3, alpha=0.7)+
-  scale_colour_viridis(discrete=T)+ 
+  scale_colour_viridis(discrete=T, option="C", direction=-1)+ 
   coord_equal()+
   theme_light()+
+  facet_wrap(~k)+
   xlab(paste0("PC1 (", signif(pve_pruned$pve[1], 3), "%)"))+
   ylab(paste0("PC2 (", signif(pve_pruned$pve[2], 3), "%)"))
 
+manual_colours = c("Q1"="#0d0887",
+                   "Q2"="#f0f921",
+                   "Q3"="#bd3786",
+                   "Q4"="#fb9f3a",
+                   "Q5"="#7201a8",
+                   "Q6"="#fdca26",
+                   "Q7"="#ed7953",
+                   "Q8"="#46039f",
+                   "Q9"="#d8576b",
+                   "Q10"="#9c179e")
+# plot pca_pruned - Location
+ggplot(pca_admix_best, aes(PC1, PC2, colour=Q))+ 
+  geom_point(size = 3, alpha=0.7)+
+  scale_colour_manual(values=manual_colours)+ 
+  coord_equal()+
+  theme_light()+
+  facet_wrap(~k)+
+  xlab(paste0("PC1 (", signif(pve_pruned$pve[1], 3), "%)"))+
+  ylab(paste0("PC2 (", signif(pve_pruned$pve[2], 3), "%)"))+
+  theme(legend.position = "none")
+
+
+
+
+
+
+## long to plot the same PC multiple times coloured by different K value populations
+
 pca_pruned$sample_name <- factor(pca_pruned$sample_name, levels=pca_pruned$sample_name[order(pca_pruned$Location, pca_pruned$sample_name, decreasing=F)])
-long_pca_pruned <- melt(pca_pruned)
+long_pca_pruned <- melt(pca_admix_best)
 
 # Create a named vector for facet labels
 pc_labels_pruned <- setNames(
@@ -39,13 +87,16 @@ pc_labels_pruned <- setNames(
   paste0("PC", pve_pruned$PC)
 )
 
+long_pca_pruned_pc2 <- subset(long_pca_pruned, variable=="PC2")
+
 # plot all pcas_pruned - location
-ggplot(long_pca_pruned, aes(sample_name, value, colour=Location))+
+ggplot(long_pca_pruned_pc2, aes(sample_name, value, colour=Pop))+
   geom_point(size = 3, alpha=0.7)+
-  scale_colour_viridis(discrete=T)+ 
+  scale_colour_viridis(discrete=T, option="C", direction=-1)+ 
   theme_light()+
-  facet_wrap(~variable, labeller = labeller(variable = pc_labels_pruned)) +
+  facet_wrap(~k, labeller = labeller(variable = pc_labels_pruned)) +
   labs(x = NULL,  # Remove x-axis label
        y = "PC value") +  # Change y-axis label
   theme(axis.text.x = element_blank(),  # Remove x-axis text (sample names)
         axis.ticks.x = element_blank())  # Remove x-axis ticks
+
